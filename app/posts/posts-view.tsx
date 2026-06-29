@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { PostCard } from "@/components/post-card";
 import { SearchInput } from "@/components/search-input";
+import { SlowConnectionBanner } from "@/components/slow-connection-banner";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePosts } from "@/hooks/use-posts";
 
@@ -29,6 +30,10 @@ export function PostsView() {
 
       <div className="mb-6">
         <SearchInput value={userIdInput} onChange={setUserIdInput} />
+      </div>
+
+      <div className="mb-4">
+        <SlowConnectionBanner />
       </div>
 
       {error ? (

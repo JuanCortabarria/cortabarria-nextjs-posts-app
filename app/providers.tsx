@@ -1,17 +1,29 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { SWRConfig } from "swr";
 
 import { FetchError, fetcher } from "@/lib/fetcher";
 
 /**
- * Global SWR configuration, mounted once at the root.
- *
- * Centralising these options here means every `useSWR` call in the app inherits
- * the same network-resilience behaviour without repeating it.
+ * Whether the current request is taking longer than expected. Driven by SWR's
+ * `onLoadingSlow` / `onSuccess` / `onError` callbacks below and consumed by the
+ * slow-connection banner.
+ */
+const SlowConnectionContext = createContext(false);
+
+export function useSlowConnection(): boolean {
+  return useContext(SlowConnectionContext);
+}
+
+/**
+ * Global SWR configuration plus the slow-connection context, mounted once at the
+ * root. Centralising these options means every `useSWR` call inherits the same
+ * network-resilience behaviour without repeating it.
  */
 export function Providers({ children }: { children: ReactNode }) {
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
+
   return (
     <SWRConfig
       value={{
@@ -22,12 +34,16 @@ export function Providers({ children }: { children: ReactNode }) {
         shouldRetryOnError: true,
         errorRetryInterval: 5000,
         errorRetryCount: 5,
-        // Threshold (ms) after which `onLoadingSlow` fires. The handler that
-        // surfaces a "slow connection" notice is wired up in a later step.
+        // If a request takes longer than this (ms), `onLoadingSlow` fires.
         loadingTimeout: 3000,
         // When the key changes (e.g. applying a filter) keep showing the
         // previous data instead of flashing back to an empty/loading state.
         keepPreviousData: true,
+        // Slow-connection notice: show while a request drags on, hide as soon
+        // as it settles (either way).
+        onLoadingSlow: () => setIsSlowConnection(true),
+        onSuccess: () => setIsSlowConnection(false),
+        onError: () => setIsSlowConnection(false),
         onErrorRetry: (error, _key, config, revalidate, { retryCount }) => {
           // Client errors (4xx) are permanent — retrying won't help.
           if (
@@ -50,7 +66,9 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }}
     >
-      {children}
+      <SlowConnectionContext.Provider value={isSlowConnection}>
+        {children}
+      </SlowConnectionContext.Provider>
     </SWRConfig>
   );
 }
