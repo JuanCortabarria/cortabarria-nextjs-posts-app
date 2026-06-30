@@ -37,15 +37,20 @@ export function PostsView() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10">
-      <header className="mb-6 flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-          Posts
-        </h1>
-        {isRevalidating ? (
-          <span className="text-xs text-zinc-400" aria-hidden="true">
-            Updating…
-          </span>
-        ) : null}
+      <header className="mb-6">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+            Posts
+          </h1>
+          {isRevalidating ? (
+            <span className="text-xs text-zinc-400" aria-hidden="true">
+              Updating…
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Posts from the JSONPlaceholder demo API
+        </p>
       </header>
 
       <div className="mb-6">
