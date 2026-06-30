@@ -1,10 +1,11 @@
 # Posts
 
 A small Next.js app that lists posts from
-**Live demo:** https://cortabarria-nextjs-posts-app.vercel.app
 [JSONPlaceholder](https://jsonplaceholder.typicode.com/posts) and lets you filter
 them by `userId`. It is built with **unstable connections in mind**: every
 feature aims to keep the app usable when the network is slow or drops.
+
+**Live demo:** https://cortabarria-nextjs-posts-app.vercel.app
 
 ## Tech stack
 
