@@ -1,41 +1,49 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { SWRConfig, type Cache } from "swr";
+import { SWRConfig, type SWRConfiguration } from "swr";
 
 import { FetchError, fetcher } from "@/lib/fetcher";
+import { localStorageProvider } from "@/lib/local-storage-cache";
 
-const CACHE_STORAGE_KEY = "posts-cache";
+// Bounded retry policy for failed requests.
+const ERROR_RETRY_INTERVAL_MS = 5000;
+const ERROR_RETRY_COUNT = 5;
+// A request slower than this fires `onLoadingSlow` (the slow-connection notice).
+const SLOW_REQUEST_THRESHOLD_MS = 3000;
 
-/**
- * SWR cache backed by localStorage, so data survives a page reload — even while
- * offline.
- *
- * The SSR guard is essential: `localStorage` doesn't exist on the server, so we
- * return an empty in-memory cache there. On the client we hydrate from
- * localStorage and write the whole cache back on `beforeunload`.
- */
-function localStorageProvider(): Cache {
-  if (typeof window === "undefined") {
-    return new Map();
-  }
-
-  const persisted = localStorage.getItem(CACHE_STORAGE_KEY);
-  const entries = persisted ? (JSON.parse(persisted) as [string, unknown][]) : [];
-  const map = new Map<string, unknown>(entries);
-
-  window.addEventListener("beforeunload", () => {
-    localStorage.setItem(
-      CACHE_STORAGE_KEY,
-      JSON.stringify(Array.from(map.entries())),
-    );
-  });
-
-  return map as unknown as Cache;
+function isClientError(error: unknown): boolean {
+  return (
+    error instanceof FetchError && error.status >= 400 && error.status < 500
+  );
 }
 
 /**
- * Whether the current request is taking longer than expected. Driven by SWR's
+ * Retry transient / network failures with a bounded, fixed-interval backoff, but
+ * never retry client errors (4xx) — those won't fix themselves. Reconnection is
+ * handled separately by `revalidateOnReconnect`.
+ */
+const onErrorRetry: SWRConfiguration["onErrorRetry"] = (
+  error,
+  _key,
+  config,
+  revalidate,
+  { retryCount },
+) => {
+  if (isClientError(error)) {
+    return;
+  }
+  if (retryCount >= (config.errorRetryCount ?? ERROR_RETRY_COUNT)) {
+    return;
+  }
+  setTimeout(
+    () => revalidate({ retryCount }),
+    config.errorRetryInterval ?? ERROR_RETRY_INTERVAL_MS,
+  );
+};
+
+/**
+ * Whether the current request is taking longer than expected. Driven by the
  * `onLoadingSlow` / `onSuccess` / `onError` callbacks below and consumed by the
  * slow-connection banner.
  */
@@ -63,10 +71,9 @@ export function Providers({ children }: { children: ReactNode }) {
         revalidateOnReconnect: true,
         // Retry after a failed request (transient / network errors).
         shouldRetryOnError: true,
-        errorRetryInterval: 5000,
-        errorRetryCount: 5,
-        // If a request takes longer than this (ms), `onLoadingSlow` fires.
-        loadingTimeout: 3000,
+        errorRetryInterval: ERROR_RETRY_INTERVAL_MS,
+        errorRetryCount: ERROR_RETRY_COUNT,
+        loadingTimeout: SLOW_REQUEST_THRESHOLD_MS,
         // When the key changes (e.g. applying a filter) keep showing the
         // previous data instead of flashing back to an empty/loading state.
         keepPreviousData: true,
@@ -75,26 +82,7 @@ export function Providers({ children }: { children: ReactNode }) {
         onLoadingSlow: () => setIsSlowConnection(true),
         onSuccess: () => setIsSlowConnection(false),
         onError: () => setIsSlowConnection(false),
-        onErrorRetry: (error, _key, config, revalidate, { retryCount }) => {
-          // Client errors (4xx) are permanent — retrying won't help.
-          if (
-            error instanceof FetchError &&
-            error.status >= 400 &&
-            error.status < 500
-          ) {
-            return;
-          }
-          // Respect the configured retry ceiling.
-          if (retryCount >= (config.errorRetryCount ?? 5)) {
-            return;
-          }
-          // Retry after the configured interval. Reconnection is handled
-          // separately by `revalidateOnReconnect`.
-          setTimeout(
-            () => revalidate({ retryCount }),
-            config.errorRetryInterval ?? 5000,
-          );
-        },
+        onErrorRetry,
       }}
     >
       <SlowConnectionContext.Provider value={isSlowConnection}>
