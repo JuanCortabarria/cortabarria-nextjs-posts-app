@@ -7,6 +7,10 @@ feature aims to keep the app usable when the network is slow or drops.
 
 **Live demo:** https://cortabarria-nextjs-posts-app.vercel.app
 
+> 📖 **[Read SOLUTION.md](./SOLUTION.md)** for the full architecture and the
+> what / how / why behind every decision (with diagrams). This README covers
+> setup and running.
+
 ## Tech stack
 
 - **Next.js 16** (App Router) + **React 19**
@@ -62,8 +66,10 @@ Open [http://localhost:3000](http://localhost:3000) — `/` redirects to `/posts
 - **Slow-connection banner** (`onLoadingSlow`), accessible via `role="status"` /
   `aria-live="polite"`.
 - **Offline persistence + indicator.** The SWR cache is mirrored to
-  `localStorage` (with an SSR guard), so a reload while offline still shows the
-  last data; an indicator appears when the browser is offline. A hydration guard
+  `localStorage` (with an SSR guard), so the last-fetched data is restored on
+  reload without a network round-trip; an indicator appears when the browser is
+  offline. This protects the data layer, not the app shell — there is no service
+  worker (see [SOLUTION.md](./SOLUTION.md) §3.6). A hydration guard
   (`useSyncExternalStore`) keeps the server and first client render identical.
 
 ## Project structure
